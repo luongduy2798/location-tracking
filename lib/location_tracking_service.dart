@@ -58,4 +58,39 @@ class LocationTrackingService {
       return false;
     }
   }
+
+  /// Get current location
+  static Future<Map<String, double>?> getCurrentLocation() async {
+    try {
+      final result = await _channel.invokeMethod('getCurrentLocation');
+      if (result != null && result is Map) {
+        return {
+          'latitude': result['latitude'] as double,
+          'longitude': result['longitude'] as double,
+        };
+      }
+      return null;
+    } catch (e) {
+      print('Error getting current location: $e');
+      return null;
+    }
+  }
+
+  /// Get current location with address
+  static Future<Map<String, dynamic>?> getCurrentLocationWithAddress() async {
+    try {
+      final result = await _channel.invokeMethod('getCurrentLocationWithAddress');
+      if (result != null && result is Map) {
+        return {
+          'latitude': result['latitude'] as double,
+          'longitude': result['longitude'] as double,
+          'address': result['address'] as String,
+        };
+      }
+      return null;
+    } catch (e) {
+      print('Error getting current location with address: $e');
+      return null;
+    }
+  }
 }

@@ -11,6 +11,15 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
     
     override init() {
         super.init()
+        
+        // Initialize with current status for iOS < 14
+        if #available(iOS 14.0, *) {
+            // Will be set when delegate callback is called
+        } else {
+            // Use the class method once during initialization
+            lastKnownAuthorizationStatus = CLLocationManager.authorizationStatus()
+        }
+        
         setupLocationManager()
         requestNotificationPermission()
     }
@@ -138,6 +147,52 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
         }
     }
     
+    // MARK: - Current Location Methods
+    
+    func getCurrentLocation(completion: @escaping (CLLocation?) -> Void) {
+        guard CLLocationManager.locationServicesEnabled() else {
+            print("Location services not enabled")
+            completion(nil)
+            return
+        }
+        
+        // Use instance method to avoid UI blocking
+        let status = getLocationAuthorizationStatus()
+        
+        guard status == .authorizedAlways || status == .authorizedWhenInUse else {
+            print("Location permission required")
+            completion(nil)
+            return
+        }
+        
+        // Store completion handler
+        currentLocationCompletion = completion
+        
+        // Request one-time location
+        locationManager.requestLocation()
+    }
+    
+    func getCurrentLocationWithAddress(completion: @escaping ([String: Any]?) -> Void) {
+        getCurrentLocation { location in
+            guard let location = location else {
+                completion(nil)
+                return
+            }
+            
+            // Get address from location
+            self.getAddressFromLocation(location) { address in
+                let result: [String: Any] = [
+                    "latitude": location.coordinate.latitude,
+                    "longitude": location.coordinate.longitude,
+                    "address": address
+                ]
+                completion(result)
+            }
+        }
+    }
+    
+    private var currentLocationCompletion: ((CLLocation?) -> Void)?
+    
     // MARK: - CLLocationManagerDelegate
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -145,20 +200,27 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
         
         print("Location updated: \(location.coordinate.latitude), \(location.coordinate.longitude)")
         
-        getAddressFromLocation(location) { address in
-            DispatchQueue.main.async {
-                let body = "Lat: \(String(format: "%.6f", location.coordinate.latitude)), Lng: \(String(format: "%.6f", location.coordinate.longitude))\n\(address)"
-                
-                self.sendLocationNotification(
-                    title: "Location Updated",
-                    body: body,
-                    userInfo: [
-                        "latitude": location.coordinate.latitude,
-                        "longitude": location.coordinate.longitude,
-                        "address": address,
-                        "timestamp": Date().timeIntervalSince1970
-                    ]
-                )
+        // Handle one-time location request
+        if let completion = currentLocationCompletion {
+            currentLocationCompletion = nil
+            completion(location)
+        } else {
+            // Handle regular location updates (only send notification if tracking is active)
+            getAddressFromLocation(location) { address in
+                DispatchQueue.main.async {
+                    let body = "Lat: \(String(format: "%.6f", location.coordinate.latitude)), Lng: \(String(format: "%.6f", location.coordinate.longitude))\n\(address)"
+                    
+                    self.sendLocationNotification(
+                        title: "Location Updated",
+                        body: body,
+                        userInfo: [
+                            "latitude": location.coordinate.latitude,
+                            "longitude": location.coordinate.longitude,
+                            "address": address,
+                            "timestamp": Date().timeIntervalSince1970
+                        ]
+                    )
+                }
             }
         }
     }
@@ -244,9 +306,12 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
         print("Location authorization changed: \(status.rawValue)")
         
+        // Store the status to avoid calling deprecated class method
+        lastKnownAuthorizationStatus = status
+        
         switch status {
         case .authorizedAlways:
-            startLocationTracking()
+            print("Location access authorized always")
         case .authorizedWhenInUse:
             // Request always authorization for background location
             manager.requestAlwaysAuthorization()
@@ -280,4 +345,27 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
             body: "Failed to monitor region \(region?.identifier ?? "Unknown"): \(error.localizedDescription)"
         )
     }
+    
+    // MARK: - Helper Methods
+    
+    func canStartLocationTracking() -> Bool {
+        guard CLLocationManager.locationServicesEnabled() else {
+            return false
+        }
+        
+        let status = getLocationAuthorizationStatus()
+        return status == .authorizedAlways
+    }
+    
+    func getLocationAuthorizationStatus() -> CLAuthorizationStatus {
+        if #available(iOS 14.0, *) {
+            return locationManager.authorizationStatus
+        } else {
+            // Use stored status from delegate callback to avoid UI blocking
+            return lastKnownAuthorizationStatus
+        }
+    }
+    
+    // Store the last known authorization status to avoid calling the deprecated class method
+    private var lastKnownAuthorizationStatus: CLAuthorizationStatus = .notDetermined
 }

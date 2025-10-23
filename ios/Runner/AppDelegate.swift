@@ -73,43 +73,34 @@ import UserNotifications
           result(FlutterError(code: "INVALID_ARGS", message: "Invalid arguments", details: nil))
         }
         
+      case "getCurrentLocation":
+        self?.locationManager.getCurrentLocation { location in
+          if let location = location {
+            result([
+              "latitude": location.coordinate.latitude,
+              "longitude": location.coordinate.longitude
+            ])
+          } else {
+            result(FlutterError(code: "LOCATION_ERROR", message: "Failed to get current location", details: nil))
+          }
+        }
+        
+      case "getCurrentLocationWithAddress":
+        self?.locationManager.getCurrentLocationWithAddress { locationData in
+          if let locationData = locationData {
+            result(locationData)
+          } else {
+            result(FlutterError(code: "LOCATION_ERROR", message: "Failed to get current location with address", details: nil))
+          }
+        }
+        
       default:
         result(FlutterMethodNotImplemented)
       }
     }
   }
-}
-
-// MARK: - UNUserNotificationCenterDelegate
-extension AppDelegate: UNUserNotificationCenterDelegate {
-  // This method is called when app is in foreground
-  func userNotificationCenter(
-    _ center: UNUserNotificationCenter,
-    willPresent notification: UNNotification,
-    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
-  ) {
-    // Show notification even when app is in foreground
-    completionHandler([.alert, .sound, .badge])
-  }
   
-  // This method is called when user taps on notification
-  func userNotificationCenter(
-    _ center: UNUserNotificationCenter,
-    didReceive response: UNNotificationResponse,
-    withCompletionHandler completionHandler: @escaping () -> Void
-  ) {
-    let userInfo = response.notification.request.content.userInfo
-    print("Notification tapped with userInfo: \(userInfo)")
-    
-    // You can handle notification tap here
-    // For example, navigate to a specific screen in your Flutter app
-    
-    completionHandler()
-  }
-}
-
-// MARK: - Background Fetch
-extension AppDelegate {
+  // MARK: - Background Fetch
   override func application(
     _ application: UIApplication,
     performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
@@ -118,10 +109,8 @@ extension AppDelegate {
     print("Background fetch triggered")
     completionHandler(.newData)
   }
-}
-
-// MARK: - Application Lifecycle
-extension AppDelegate {
+  
+  // MARK: - Application Lifecycle
   override func applicationDidEnterBackground(_ application: UIApplication) {
     super.applicationDidEnterBackground(application)
     print("App entered background - location tracking continues")
@@ -140,5 +129,32 @@ extension AppDelegate {
   override func applicationWillTerminate(_ application: UIApplication) {
     super.applicationWillTerminate(application)
     print("App will terminate - background location tracking may continue")
+  }
+  
+  // MARK: - UNUserNotificationCenterDelegate
+  
+  // This method is called when app is in foreground
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    // Show notification even when app is in foreground
+    completionHandler([.alert, .sound, .badge])
+  }
+  
+  // This method is called when user taps on notification
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    let userInfo = response.notification.request.content.userInfo
+    print("Notification tapped with userInfo: \(userInfo)")
+    
+    // You can handle notification tap here
+    // For example, navigate to a specific screen in your Flutter app
+    
+    completionHandler()
   }
 }

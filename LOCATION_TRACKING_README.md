@@ -14,8 +14,8 @@
 
 ### 3. Background Modes đã được cấu hình
 - `location`: Cho phép app theo dõi vị trí ở background
-- `background-processing`: Xử lý tác vụ ở background
-- `background-fetch`: Cập nhật dữ liệu ở background
+- `processing`: Xử lý tác vụ ở background
+- `fetch`: Cập nhật dữ liệu ở background
 
 ## Cách sử dụng
 
@@ -43,8 +43,8 @@ fvm flutter run
 <key>UIBackgroundModes</key>
 <array>
     <string>location</string>
-    <string>background-processing</string>
-    <string>background-fetch</string>
+    <string>processing</string>
+    <string>fetch</string>
 </array>
 
 <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

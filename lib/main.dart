@@ -124,6 +124,35 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  void _getCurrentLocation() async {
+    _showMessage('Getting current location and address...');
+    
+    final locationData = await LocationTrackingService.getCurrentLocationWithAddress();
+    if (locationData != null) {
+      setState(() {
+        _latController.text = locationData['latitude']!.toStringAsFixed(6);
+        _lngController.text = locationData['longitude']!.toStringAsFixed(6);
+        
+        // Use the real address as the geofence name
+        String address = locationData['address'] as String;
+        if (address.isNotEmpty && address != 'Unknown location') {
+          // Shorten the address if it's too long
+          if (address.length > 50) {
+            address = address.substring(0, 47) + '...';
+          }
+          _nameController.text = address;
+        } else {
+          _nameController.text = 'Current Location';
+        }
+      });
+      
+      String fullAddress = locationData['address'] as String;
+      _showMessage('Location loaded: $fullAddress');
+    } else {
+      _showMessage('Failed to get current location. Make sure location permission is granted.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -232,9 +261,26 @@ class _MyHomePageState extends State<MyHomePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _addGeofence,
-                      child: const Text('Add Geofence'),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _addGeofence,
+                            child: const Text('Add Geofence'),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _getCurrentLocation,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Use Current Location'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -255,7 +301,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 16),
-                      ...._geofences.map((fence) => Card(
+                      ..._geofences.map((fence) => Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
                           title: Text(fence['name']),
