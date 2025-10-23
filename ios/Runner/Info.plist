@@ -32,6 +32,8 @@
 	<string>This app needs always location access to track your location in background and send location notifications.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app needs location access to track your current location.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>This app needs notification permission to send location alerts.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

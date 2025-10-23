@@ -108,6 +108,19 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
         }
     }
     
+    func restoreGeofence(latitude: Double, longitude: Double, radius: Double, identifier: String) {
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        let region = CLCircularRegion(center: coordinate, radius: radius, identifier: identifier)
+        
+        region.notifyOnEntry = true
+        region.notifyOnExit = true
+        
+        locationManager.startMonitoring(for: region)
+        geofenceRegions.append(region)
+        
+        print("Restored geofence: \(identifier) at \(latitude), \(longitude) with radius \(radius)m")
+    }
+    
     // MARK: - Notification Methods
     
     private func sendLocationNotification(title: String, body: String, userInfo: [String: Any] = [:]) {

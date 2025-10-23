@@ -59,6 +59,27 @@ class LocationTrackingService {
     }
   }
 
+  /// Restore a geofence (used for app startup, no notification sent)
+  static Future<bool> restoreGeofence({
+    required double latitude,
+    required double longitude,
+    required double radius,
+    required String identifier,
+  }) async {
+    try {
+      final result = await _channel.invokeMethod('restoreGeofence', {
+        'latitude': latitude,
+        'longitude': longitude,
+        'radius': radius,
+        'identifier': identifier,
+      });
+      return result == true;
+    } catch (e) {
+      print('Error restoring geofence: $e');
+      return false;
+    }
+  }
+
   /// Get current location
   static Future<Map<String, double>?> getCurrentLocation() async {
     try {

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'location_tracking_service.dart';
+import 'location_storage_service.dart';
 
-void main() {
+ main() {
   runApp(const MyApp());
 }
 
@@ -39,40 +40,83 @@ class _MyHomePageState extends State<MyHomePage> {
   final TextEditingController _nameController = TextEditingController();
 
   @override
-  void initState() {
+   initState() {
     super.initState();
     // Set default values for testing
     _latController.text = '10.762622'; // Ho Chi Minh City
     _lngController.text = '106.660172';
     _radiusController.text = '100';
     _nameController.text = 'Test Location';
+    
+    // Load saved state
+    _loadSavedState();
+  }
+  
+   _loadSavedState() async {
+    try {
+      // Load tracking status
+      final isTracking = await LocationStorageService.getTrackingStatus();
+      
+      // Load geofences
+      final savedGeofences = await LocationStorageService.getGeofences();
+      
+      setState(() {
+        _isTracking = isTracking;
+        _geofences.clear();
+        _geofences.addAll(savedGeofences);
+      });
+      
+      // Restore geofences to native side (always, regardless of tracking status)
+      for (final fence in savedGeofences) {
+        await LocationTrackingService.restoreGeofence(
+          latitude: fence['latitude'],
+          longitude: fence['longitude'],
+          radius: fence['radius'],
+          identifier: fence['name'],
+        );
+      }
+      
+      // If tracking was active, start tracking again
+      if (isTracking) {
+        await LocationTrackingService.startLocationTracking();
+        _showMessage('Restored tracking state and ${savedGeofences.length} geofences');
+      } else if (savedGeofences.isNotEmpty) {
+        _showMessage('Restored ${savedGeofences.length} geofences (tracking stopped)');
+      }
+    } catch (e) {
+      print('Error loading saved state: $e');
+    }
   }
 
-  void _startTracking() async {
+   _startTracking() async {
     final success = await LocationTrackingService.startLocationTracking();
     if (success) {
       setState(() {
         _isTracking = true;
       });
+      // Save tracking status to storage
+      await LocationStorageService.saveTrackingStatus(true);
       _showMessage('Location tracking started');
     } else {
       _showMessage('Failed to start location tracking');
     }
   }
 
-  void _stopTracking() async {
+   _stopTracking() async {
     final success = await LocationTrackingService.stopLocationTracking();
     if (success) {
       setState(() {
         _isTracking = false;
       });
+      // Save tracking status to storage
+      await LocationStorageService.saveTrackingStatus(false);
       _showMessage('Location tracking stopped');
     } else {
       _showMessage('Failed to stop location tracking');
     }
   }
 
-  void _addGeofence() async {
+   _addGeofence() async {
     final lat = double.tryParse(_latController.text);
     final lng = double.tryParse(_lngController.text);
     final radius = double.tryParse(_radiusController.text);
@@ -91,14 +135,20 @@ class _MyHomePageState extends State<MyHomePage> {
     );
 
     if (success) {
+      final newGeofence = {
+        'name': name,
+        'latitude': lat,
+        'longitude': lng,
+        'radius': radius,
+      };
+      
       setState(() {
-        _geofences.add({
-          'name': name,
-          'latitude': lat,
-          'longitude': lng,
-          'radius': radius,
-        });
+        _geofences.add(newGeofence);
       });
+      
+      // Save geofences to storage
+      await LocationStorageService.saveGeofences(_geofences);
+      
       _showMessage('Geofence "$name" added');
       _nameController.clear();
     } else {
@@ -106,25 +156,29 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  void _removeGeofence(String name) async {
+   _removeGeofence(String name) async {
     final success = await LocationTrackingService.removeGeofence(name);
     if (success) {
       setState(() {
         _geofences.removeWhere((fence) => fence['name'] == name);
       });
+      
+      // Save updated geofences to storage
+      await LocationStorageService.saveGeofences(_geofences);
+      
       _showMessage('Geofence "$name" removed');
     } else {
       _showMessage('Failed to remove geofence');
     }
   }
 
-  void _showMessage(String message) {
+   _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
   }
 
-  void _getCurrentLocation() async {
+   _getCurrentLocation() async {
     _showMessage('Getting current location and address...');
     
     final locationData = await LocationTrackingService.getCurrentLocationWithAddress();
@@ -151,6 +205,28 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       _showMessage('Failed to get current location. Make sure location permission is granted.');
     }
+  }
+
+   _clearAllData() async {
+    // Stop tracking first
+    if (_isTracking) {
+      await _stopTracking();
+    }
+    
+    // Remove all geofences
+    for (final fence in List.from(_geofences)) {
+      await LocationTrackingService.removeGeofence(fence['name']);
+    }
+    
+    // Clear storage
+    await LocationStorageService.clearAll();
+    
+    setState(() {
+      _isTracking = false;
+      _geofences.clear();
+    });
+    
+    _showMessage('All data cleared');
   }
 
   @override
@@ -288,6 +364,32 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             const SizedBox(height: 16),
 
+            // Debug Section
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Debug Actions',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _clearAllData,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Clear All Data'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             // Geofence List
             if (_geofences.isNotEmpty)
               Card(
@@ -355,7 +457,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   @override
-  void dispose() {
+   dispose() {
     _latController.dispose();
     _lngController.dispose();
     _radiusController.dispose();
